@@ -3,8 +3,16 @@ FROM python:3.8.12-slim
 RUN apt-get update \
     && apt-get -y upgrade \
     && apt-get -y install --no-install-recommends curl \
+    && apt-get -y install apt-transport-https ca-certificates gnupg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] http://packages.cloud.google.com/apt cloud-sdk main" | \
+    tee -a /etc/apt/sources.list.d/google-cloud-sdk.list \
+    && curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | \
+    apt-key --keyring /usr/share/keyrings/cloud.google.gpg  add - && \
+    apt-get update -y && \
+    apt-get install google-cloud-sdk -y
 
 RUN pip install pip==21.3.1
 
@@ -25,5 +33,34 @@ COPY ./docker/install ./.scripts
 WORKDIR /app
 
 ENV PATH "/home/poetry/.local/bin:$PATH"
+
+WORKDIR /app
+
+USER root
+
+EXPOSE 8888
+
+# libpq-dev for postgres python support in sqlalchemy
+RUN apt-get update && apt-get install -y build-essential libpq-dev
+RUN chown -R poetry /app
+
+USER poetry
+
+COPY pyproject.toml .
+COPY poetry.lock .
+COPY load-db-and-tables.py .
+COPY vlr-gg.db .
+
+# needed so that the app is recognized as a importable module
+RUN mkdir /app/valorant_scraper_gcp && touch /app/valorant_scraper_gcp/__init__.py
+
+RUN /bin/bash -c "poetry config virtualenvs.in-project true"
+RUN /bin/bash -c "poetry install"
+
+COPY --chown=poetry:poetry valorant_scraper_gcp valorant_scraper_gcp
+
+ENV IN_DOCKER_CONTAINER "Yes"
+
 ENTRYPOINT ["/home/poetry/.scripts/entrypoint.sh"]
-CMD ["/home/poetry/.scripts/cmd.sh"]
+
+# CMD ["/bin/bash"]
