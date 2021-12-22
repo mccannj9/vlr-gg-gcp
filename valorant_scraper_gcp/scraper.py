@@ -56,7 +56,10 @@ class ValorantResults:
         # get most recent match
         with self.db_session_maker() as sesh:
             self.latest_match: Optional[datetime] = (
-                sesh.query(Matches.timestamp).order_by(desc('timestamp')).first()
+                sesh
+                .query(Matches.timestamp)
+                .order_by(desc('timestamp'))
+                .first()
             )
 
         if self.latest_match is None:
@@ -73,7 +76,9 @@ class ValorantResults:
 
     def request(self) -> Optional[requests.models.Response]:
         with self.session as sesh:
-            response = sesh.get(match_results_url.format(page=self.current_page))
+            response = sesh.get(
+                match_results_url.format(page=self.current_page)
+            )
 
         if response.status_code != 200:
             self.status_code = response.status_code
@@ -93,7 +98,9 @@ class ValorantResults:
         response = self.request()
 
         if response is None:
-            raise HTTPError(f"Response error: status code was {self.status_code}")
+            raise HTTPError(
+                f"Response error: status code was {self.status_code}"
+            )
 
         response_selector = parsel.Selector(response.text)
         for label, card in zip(
